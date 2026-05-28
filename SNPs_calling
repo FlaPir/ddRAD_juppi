@@ -1,0 +1,16 @@
+#!/bin/bash
+
+  populations \
+    -P /path/to/gstacks_output \
+    -M /path/to/pop_map.txt \
+    -O /path/to/output_folder \
+    --vcf \
+    --radpainter \
+    --plink \
+    --treemix \
+    --genepop \
+    --min-gt-depth 5 \
+    --R 0.6 \
+    --min-maf 0.05 \
+    --write-random-snp \
+    --max-obs-het 0.7
