@@ -1,2 +1,2 @@
-# ddRAD_juppi
+# ddRAD juppi
 Repository for ddRAD_juppi paper 
