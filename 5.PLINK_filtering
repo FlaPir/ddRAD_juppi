@@ -11,8 +11,8 @@
     --out kinship_filtered
 
   plink \
-    --bfile plink
-    --allow-extra-chr 
+    --bfile plink \
+    --allow-extra-chr \
     --keep kinship_filtered.rel.id \ #output file from --rel-cutoff parameter containing the list of the unrelated individuals
     --out dataset_unrelated
     
@@ -34,18 +34,32 @@
 
   plink \
     --file dataset_unrelated \
-    --allow-extra-chr
-    --extract dataset_unrelated_pruned.prune.in #output file of --indep-pairwise containing the unlinked SNPs
-    --mind 0.2 #to remove individuals with > 20% missing genotypes
-    --geno 0.05 #to remove loci with > 0.5% missing genotypes
+    --allow-extra-chr \
+    --extract dataset_unrelated_pruned.prune.in \ #output file of --indep-pairwise containing the unlinked SNPs
+    --mind 0.2 \ #to remove individuals with > 20% missing genotypes
+    --geno 0.05 \ #to remove loci with > 0.5% missing genotypes
     --out datasetA
 
   #datasetB
 
     plink \
     --file dataset_unrelated \
-    --allow-extra-chr
-    --extract dataset_unrelated_pruned.prune.in #output file of --indep-pairwise containing the unlinked SNPs
-    --mind 0.5 #to remove individuals with > 50% missing genotypes
-    --geno 0.05 #to remove loci with > 0.5% missing genotypes
+    --allow-extra-chr \
+    --extract dataset_unrelated_pruned.prune.in \ #output file of --indep-pairwise containing the unlinked SNPs
+    --mind 0.5 \ #to remove individuals with > 50% missing genotypes
+    --geno 0.05 \ #to remove loci with > 0.5% missing genotypes
     --out datasetB
+
+######################################################
+## maintaining linkage disequilibirum (for fineRAD) ##
+######################################################
+
+#datasetC
+
+  plink \
+    --file dataset_unrelated \
+    --allow-extra-chr \
+    --mind 0.2 \ #to remove individuals with > 20% missing genotypes
+    --geno 0.05 \ #to remove loci with > 0.5% missing genotypes
+    --out datasetC
+
