@@ -1,7 +1,5 @@
 #!/bin/bash
 
-
-threads=8
 genome="/path/to/GCA_963924435.1_idCulPipi1.1_genomic.fna"
 proc_reads="path/to/proc_reads_folder"
 align_out="path/to/aligned_reads_folder"
@@ -9,7 +7,6 @@ stats_out="${align_out}/stats"
 flagstat_out="${align_out}/flagstats"
 
 mkdir -p "$align_out" "$stats_out" "$flagstat_out"
-
 
 export threads genome proc_reads align_out stats_out flagstat_out
 
@@ -24,7 +21,6 @@ process_sample () {
 
     RG="@RG\tID:${base_name}\tSM:${base_name}\tPL:ILLUMINA"
 
-    
     bwa mem -t "$threads" -R "$RG" "$genome" "$fq1" "$fq2" | \
     samtools sort -@ "$threads" -o "$bam_file"
 
