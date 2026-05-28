@@ -29,6 +29,5 @@ run_stacks() {
 }
 
 export -f run_stacks
-
-# 8 samples processed per run
+# to process 8 samples per run
 parallel -j 8 run_stacks ::: "$INPUT_DIR"/*.1.fq
