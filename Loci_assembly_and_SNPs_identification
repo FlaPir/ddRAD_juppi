@@ -1,0 +1,13 @@
+#!/bin/bash
+
+gstacks \
+  -I /path/to/aligned_reads \
+  -M /path/to/pop_map.txt \
+  -O /path/to/output_folder \
+    --var-alpha 0.05 \
+    --gt-alpha 0.05 \
+    --min-mapq 20 \
+    --max-clipped 0.4 \
+    --max-insert-len 800 \
+    --phasing-cooccurrences-thr-range 5,15 \
+    -t 12 
