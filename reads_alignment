@@ -1,0 +1,38 @@
+#!/bin/bash
+
+
+threads=8
+genome="/path/to/GCA_963924435.1_idCulPipi1.1_genomic.fna"
+proc_reads="path/to/proc_reads_folder"
+align_out="path/to/aligned_reads_folder"
+stats_out="${align_out}/stats"
+flagstat_out="${align_out}/flagstats"
+
+mkdir -p "$align_out" "$stats_out" "$flagstat_out"
+
+
+export threads genome proc_reads align_out stats_out flagstat_out
+
+process_sample () {
+    fq1="$1"
+    fq2="${fq1%.1.fq}.2.fq"
+    base_name=$(basename "$fq1" .1.fq)
+    bam_file="${align_out}/${base_name}.bam"
+
+    [[ -e "$fq2" ]] || exit 0
+    [[ -e "$bam_file" ]] && exit 0
+
+    RG="@RG\tID:${base_name}\tSM:${base_name}\tPL:ILLUMINA"
+
+    
+    bwa mem -t "$threads" -R "$RG" "$genome" "$fq1" "$fq2" | \
+    samtools sort -@ "$threads" -o "$bam_file"
+
+    samtools stats "$bam_file" > "${stats_out}/${base_name}_stats.txt"
+    samtools flagstat "$bam_file" > "${flagstat_out}/${base_name}_flagstat.txt"
+}
+
+export -f process_sample
+
+# to process 4 samples per run 
+parallel -j 4 process_sample ::: ${proc_reads}/*.1.fq
