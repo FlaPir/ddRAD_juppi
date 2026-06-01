@@ -34,7 +34,7 @@ pca_outliers_only <- pca_all_snps %>%
   filter(abs(Z_score) > threshold) %>% 
   arrange(desc(abs(Z_score)))
 
-#visualisation
+#visualization
 
 p_pca <- ggplot(pca_all_snps, aes(x = Index, y = Z_score)) +
   geom_point(alpha = 0.4, color = "grey") +
