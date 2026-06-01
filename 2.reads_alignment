@@ -1,6 +1,6 @@
 #!/bin/bash
 
-genome="/path/to/GCA_963924435.1_idCulPipi1.1_genomic.fna"
+genome="/path/to/GCA_963924435.1_idCulPipi1.1_genomic.fna" #Accession: GCA_963924435.1
 proc_reads="path/to/proc_reads_folder"
 align_out="path/to/aligned_reads_folder"
 stats_out="${align_out}/stats"
