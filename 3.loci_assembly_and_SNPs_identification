@@ -1,6 +1,6 @@
 #!/bin/bash
 
-gstacks \
+gstacks \ 
   -I /path/to/aligned_reads \
   -M /path/to/pop_map.txt \
   -O /path/to/output_folder \
