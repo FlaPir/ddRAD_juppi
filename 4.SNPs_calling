@@ -1,5 +1,5 @@
 #!/bin/bash
-
+ 
   populations \
     -P /path/to/gstacks_output \
     -M /path/to/pop_map.txt \
