@@ -1,4 +1,4 @@
-# Population Genomics analyses for ddRAD juppi Emilia-Romagna
+# population genomics analyses for ddRAD juppi Emilia-Romagna
 
 This folder contains the scripts used for the paper "The neglected species within the Culex pipiens complex: cryptic diversity and genetic variation associated to Wolbachia-uninfected Culex juppi"
 
