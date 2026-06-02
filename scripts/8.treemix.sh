@@ -12,7 +12,7 @@
 ## conversion to a Treemix compatible file of plink output ##
 #############################################################
 
-python3 /path/to/plink2treemix.py /path/to/freq_per_treemix.frq.strat | gzip > treemix_completo.gz
+python3 /path/to/plink2treemix.py /path/to/freq_per_treemix.frq.strat | gzip > treemix.gz
 
 # plink2treemix.py downloaded by https://github.com/thomnelson/tools/blob/master/plink2treemix.py and modified 
 
@@ -72,7 +72,7 @@ sys.stderr.write(f"\nFinished! Total SNPs written: {nsnps_out}\n")
 for root in LN_J LN BO MO RA; do
   for i in {0..5}; do
     echo "Running: TreeMix m=$i rooted on $root"
-    treemix -i treemix_copleto.gz -m $i -o treemix_${root}_m$i -root $root -k 500 -bootstrap > log_${root}_m$i.txt
+    treemix -i treemix.gz -m $i -o treemix_${root}_m$i -root $root -k 500 -bootstrap > log_${root}_m$i.txt
   done
 done
 
@@ -80,7 +80,7 @@ done
 #unrooted cycle
 for i in {0..5}; do
   echo "Running: TreeMix m=$i (Unrooted)"
-  treemix -i treemix_copleto.gz -m $i -o treemix_unrooted_m$i -k 500 -bootstrap > log_unrooted_m$i.txt
+  treemix -i treemix.gz -m $i -o treemix_unrooted_m$i -k 500 -bootstrap > log_unrooted_m$i.txt
 done
 
 
