@@ -1,0 +1,120 @@
+############################################
+#### windowed Fst results visualization ####
+############################################
+
+# RStudio 2025.05.1+513 "Mariposa Orchid" Release (ab7c1bc795c7dcff8f26215b832a3649a19fc16c, 2025-06-01) for windows
+
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+setwd("path/to/windowed_Fst_results/")
+
+target_chroms <- c("OZ004311.1", "OZ004312.1", "OZ004313.1")
+
+# "fst_pairwise_Bologna_vs_Lido_delle_nazioni_J.windowed.weir.fst" is an example of the output format of VCFtools weir-fst-pop
+file_list <- list.files(pattern = ".*windowed\\.weir\\.fst") 
+
+all_fst_list <- lapply(file_list, function(f) {
+  d <- read.table(f, 
+                    header = TRUE, 
+                    stringsAsFactors = FALSE)
+  if (nrow(d) == 0) return(NULL) 
+  
+  pop_name <- gsub(".windowed.weir.fst", "", f)
+  #pop_name <- gsub("Fst_Bologna_vs_", "", pop_name)
+  
+  d$Comparison <- pop_name
+  return(d[, c("CHROM", "BIN_START", "BIN_END", "WEIGHTED_FST", "Comparison")])
+})
+
+all_fst_combined <- do.call(rbind, all_fst_list)
+
+data_filtered <- all_fst_combined %>%
+  filter(CHROM %in% target_chroms) %>%
+  mutate(WEIGHTED_FST = ifelse(WEIGHTED_FST < 0, 0, WEIGHTED_FST)) %>%
+  na.omit()
+
+data_filtered$CHROM <- factor(data_filtered$CHROM, levels = target_chroms)
+
+reformat_data <- data_filtered %>%
+  group_by(CHROM) %>%
+  summarise(chr_len = max(BIN_END)) %>%
+  mutate(tot = cumsum(as.numeric(chr_len)) - chr_len) %>%
+  dplyr::select(-chr_len) %>%
+  left_join(data_filtered, ., by = "CHROM") %>%
+  mutate(BPcum = BIN_START + tot)
+
+#visualization 
+
+axisdf <- reformat_data %>%
+  group_by(CHROM) %>%
+  summarize(center = (max(BPcum) + min(BPcum)) / 2)
+
+p_grid <- ggplot(reformat_data, aes(x = BPcum, y = WEIGHTED_FST, color = CHROM)) +
+  geom_point(alpha = 0.2, size = 0.5) +
+  geom_smooth(method = "loess", span = 0.1, se = FALSE, size = 0.8) +
+  facet_grid(Comparison ~ .) + 
+  scale_color_manual(values = c("#377eb8", "#4daf4a", "#e41a1c")) +
+  scale_x_continuous(label = axisdf$CHROM, breaks = axisdf$center) +
+  scale_y_continuous(limits = c(0, 1)) +
+  theme_bw() +
+  theme(
+   
+    panel.background = element_rect(fill = "antiquewhite", color = NA),
+    panel.grid.major = element_blank(),                           
+    panel.grid.minor = element_blank(),                           
+  
+    strip.text.y = element_text(angle = 0, face = "bold", size = 7),
+    legend.position = "none",
+    axis.text.x = element_text(size = 8, angle = 45, hjust = 1)
+  ) +
+  labs(x = "Chromosome", y = "Weighted Fst")
+
+ggsave(
+  filename = "windowed_Fst_chromosomes.tif", 
+  plot = p_grid,                        
+  device = "tiff",                       
+  dpi = 600,                             
+  width = xx,                           
+  height = xx,                           
+  units = "in",                          
+  compression = "lzw"                    
+)
+
+#################################
+#### extraction Fst outliers ####
+#################################
+
+thresholds <- reformat_data %>%
+  group_by(Comparison) %>%
+  summarize(threshold = quantile(WEIGHTED_FST, 0.99, na.rm = TRUE))
+
+outliers <- reformat_data %>%
+  left_join(thresholds, by = "Comparison") %>%
+  filter(WEIGHTED_FST > threshold)
+
+#printing the Fst top 99th in both csv and bed format
+write.csv(outliers, "Fst_top_outlier_Fst.csv", row.names = FALSE)
+
+outlier_bed <- outliers %>%
+  dplyr::select(CHROM, BIN_START, BIN_END, Comparison, WEIGHTED_FST)
+
+write.table(outlier_bed, "Fst_top_outliers.bed", sep="\t", quote=F, row.names=F, col.names=F)
+
+#plot the outliers in the graph
+p_grid_outliers <- p_grid + 
+  # geom_hline rimosso come richiesto
+  geom_point(data = outliers, aes(x = BPcum, y = WEIGHTED_FST), 
+             color = "gold", size = 0.7, alpha = 0.8))
+
+ggsave(
+  filename = "windowed_Fst_chromosomes_top_outliers.tif", 
+  plot = p_grid_outliers,                        
+  device = "tiff",                       
+  dpi = 600,                             
+  width = xx,                           
+  height = xx,                           
+  units = "in",                          
+  compression = "lzw"                    
+)
