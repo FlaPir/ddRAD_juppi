@@ -12,9 +12,9 @@ for K in {1..6}; do
     for R in $(seq 1 $REPLICATES); do
 
         #-s to change seed for each run
-        /home1/flap/scripts/admixture32/admixture/releases/admixture_linux-1.3.0/admixture32 "$INPUT_FILE" $K --cv -s time | tee "${OUTPUT_DIR}/log_K${K}_run${R}.txt"
+        path/to/the/software/admixture32 "$INPUT_FILE" $K --cv -s time | tee "${OUTPUT_DIR}/log_K${K}_run${R}.txt"
 
-        # changing the names of the files to avoid overlapping with the next run 
+        #changes the name of the files to avoid overlapping with the next run 
         mv "${BASE_NAME}.${K}.Q" "${BASE_NAME}_K${K}_run${R}.Q"
         mv "${BASE_NAME}.${K}.P" "${BASE_NAME}_K${K}_run${R}.P"
 
