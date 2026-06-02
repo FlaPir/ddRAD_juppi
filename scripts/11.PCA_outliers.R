@@ -56,7 +56,7 @@ ggsave("PCA_Top_Outliers.tif",
         dpi = 600, 
         compression = "lzw")
 
-#vcs and bed file creation
+#csv and bed file creation
 
 bed_outliers <- pca_outliers_only %>%
   mutate(
