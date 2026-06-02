@@ -22,7 +22,7 @@ gff_clean <- gff_raw %>%
     Gene_ID_base = str_replace(Gene_ID_base, "\\..*", ""),
   
     Gene_Symbol  = str_extract(attributes, "(?<=Name=)[^;]+"),
-    Gene_Symbol  = ifelse(Gene_Symbol == "n/a", NA, Gene_Symbol), # Clean up missing names
+    Gene_Symbol  = ifelse(Gene_Symbol == "n/a", NA, Gene_Symbol), #Clean up missing names
     
     Function     = str_extract(attributes, "(?<=product=)[^;]+")
   ) %>%
@@ -114,5 +114,3 @@ ggsave(
   dpi = 600, 
   compression = "lzw"
 )
-
-message("--> TIFF image successfully saved to: ", image_output_path)
