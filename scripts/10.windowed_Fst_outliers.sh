@@ -1,0 +1,28 @@
+#!/bin/bash
+
+VCF_FILE="path/to/datasetA.vcf"
+WINDOW=500
+STEP=100
+
+#files containing the exact sample names reported in the VCF file 
+POPS=("Bologna.txt" "Modena.txt" "Ravenna.txt" "Lido_delle_Nazioni.txt" "Lido_delle_Nazioni_J.txt") #replace with any different pop_names
+
+for i in "${!POPS[@]}"; do
+    for j in $(seq $((i+1)) $((${#POPS[@]}-1))); do
+
+        POP_A="${POPS[$i]}"
+        POP_B="${POPS[$j]}"
+
+        # to remove .txt extension for having clean output files 
+        NAME_A="${POP_A%.txt}"
+        NAME_B="${POP_B%.txt}"
+
+        vcftools --vcf "$VCF_FILE" \
+        --weir-fst-pop "$POP_A" \
+        --weir-fst-pop "$POP_B" \
+        --fst-window-size "$WINDOW" \
+        --fst-window-step "$STEP" \
+        --out "fst_pairwise_${NAME_A}_vs_${NAME_B}"
+
+    done
+done
