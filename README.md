@@ -1,4 +1,4 @@
-# ddRAD juppi
+# ddRAD juppi Emilia-Romagna 
 Repository for the paper
 "The neglected species within the Culex pipiens complex: cryptic diversity and genetic variation associated to Wolbachia-uninfected Culex juppi" 
 
