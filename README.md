@@ -1,6 +1,6 @@
 # ddRAD juppi Emilia-Romagna 
-Repository for the paper
-"The neglected species within the Culex pipiens complex: cryptic diversity and genetic variation associated to Wolbachia-uninfected Culex juppi" 
+Repository containing the scripts used and the main data obtained for the paper
+"The neglected species within the Culex pipiens complex: cryptic diversity and genetic variation associated to Wolbachia-uninfected Culex juppi"
 
 Flavio Piras(1), Valentina Lucchesi(1), Tereza Manousaki(3), Arianna Puggioli(2), Rodolfo Veronesi(2), Romeo Bellini(2), Sandra Urbanelli(1), Valentina Mastrantonio(1*), Daniele Porretta(1)
 
