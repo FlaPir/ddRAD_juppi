@@ -5,10 +5,10 @@ library(adegenet)
 library(RColorBrewer)
 
 setwd("path/to/VCF")
-vcf <- read.vcfR("dataset.vcf")
+vcf <- read.vcfR("datasetA/B.vcf")
 gl_data <- vcfR2genlight(vcf)
 
-info_pop <- read.csv("path/to/popmap",  #sample - population file
+info_pop <- read.csv("path/to/popmap",  #sample_id \t population_locality file map
                     sep="\t", stringsAsFactors=FALSE)
 colnames(info_pop) <- c("Sample","Locality")
 info_pop$Sample <- trimws(info_pop$Sample)
@@ -116,7 +116,7 @@ ld1 <- dapc_final$ind.coord[,1]
 dens_list <- lapply(levels(pop_factor), function(p) density(ld1[pop_factor==p], bw="nrd0", adjust=1.2))
 
 ymax <- max(sapply(dens_list, function(d) max(d$y)))
-xmin <- min(ld1) - (diff(range(ld1))*0.25) # Padding orizzontale
+xmin <- min(ld1) - (diff(range(ld1))*0.25) 
 xmax <- max(ld1) + (diff(range(ld1))*0.25)
 
 plot(NA, xlim=c(xmin, xmax), ylim=c(0, ymax*1.1),
