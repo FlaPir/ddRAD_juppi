@@ -10,4 +10,5 @@ finestructure -m T -x 10000 per_radpainter.haps_chunks.out per_rad_painter_chunk
 # https://doi.org/10.1371/journal.pgen.1002453
 
 
-# for visualizing the results, "fineRADstructurePlot.R" was used; fineRADstructurePlot.R is part of the fineRAD pipeline package 
+# for visualizing the results, "fineRADstructurePlot.R" was used; 
+#fineRADstructurePlot.R is part of the fineRAD pipeline package we used without any modifications 
