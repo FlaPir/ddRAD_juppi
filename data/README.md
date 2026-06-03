@@ -4,6 +4,6 @@ datasetB -> LD pruned; missingness per indvd > 50%; missingness per genotype > 5
 
 datasetC -> NO LD pruning; missingness per indvd > 20%; missingness per genotype > 5%
 
-outliers.xlsx -> excel file containing the Fst outliers, PCA outliers, and their intersection 
+outliers.xlsx -> excel file containing the annotated Fst outliers, PCA outliers, and their intersection 
 
-Culex_pipiens_annotated_genome.zip -> annotate Culex pipiens genome (.gff3)
+Culex_pipiens_annotated_genome.zip -> annotated Culex pipiens genome (.gff3)
