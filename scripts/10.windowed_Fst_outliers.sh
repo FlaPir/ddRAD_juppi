@@ -5,7 +5,7 @@ WINDOW=500
 STEP=100
 
 #files containing the exact sample names reported in the VCF file 
-POPS=("Bologna.txt" "Modena.txt" "Ravenna.txt" "Lido_delle_Nazioni.txt" "Lido_delle_Nazioni_J.txt") #replace with any different pop_names
+POPS=("Bologna.txt" "Modena.txt" "Ravenna.txt" "Lido_delle_Nazioni.txt" "Lido_delle_Nazioni_J.txt")
 
 for i in "${!POPS[@]}"; do
     for j in $(seq $((i+1)) $((${#POPS[@]}-1))); do
