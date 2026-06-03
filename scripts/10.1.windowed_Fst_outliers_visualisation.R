@@ -12,7 +12,7 @@ setwd("path/to/windowed_Fst_results/")
 
 target_chroms <- c("OZ004311.1", "OZ004312.1", "OZ004313.1")
 
-# "fst_pairwise_Bologna_vs_Lido_delle_nazioni_J.windowed.weir.fst" is an example of the output format of VCFtools weir-fst-pop
+# "fst_pairwise_Bologna_vs_Lido_delle_nazioni_J.windowed.weir.fst" is an example of the output format of VCFtools --weir-fst-pop
 file_list <- list.files(pattern = ".*windowed\\.weir\\.fst") 
 
 all_fst_list <- lapply(file_list, function(f) {
@@ -22,7 +22,6 @@ all_fst_list <- lapply(file_list, function(f) {
   if (nrow(d) == 0) return(NULL) 
   
   pop_name <- gsub(".windowed.weir.fst", "", f)
-  #pop_name <- gsub("Fst_Bologna_vs_", "", pop_name)
   
   d$Comparison <- pop_name
   return(d[, c("CHROM", "BIN_START", "BIN_END", "WEIGHTED_FST", "Comparison")])
@@ -95,6 +94,7 @@ outliers <- reformat_data %>%
   filter(WEIGHTED_FST > threshold)
 
 #printing the Fst top 99th in both csv and bed format
+
 write.csv(outliers, "Fst_top_outlier_Fst.csv", row.names = FALSE)
 
 outlier_bed <- outliers %>%
@@ -103,8 +103,9 @@ outlier_bed <- outliers %>%
 write.table(outlier_bed, "Fst_top_outliers.bed", sep="\t", quote=F, row.names=F, col.names=F)
 
 #plot the outliers in the graph
+
 p_grid_outliers <- p_grid + 
-  # geom_hline rimosso come richiesto
+
   geom_point(data = outliers, aes(x = BPcum, y = WEIGHTED_FST), 
              color = "gold", size = 0.7, alpha = 0.8))
 
