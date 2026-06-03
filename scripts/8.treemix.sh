@@ -3,7 +3,7 @@
   plink \
     --bfile datasetA/B \
     --allow-extra-chr
-    --within treemix_cluster #text file LOCALITY /t SAMPLE /t LOCALITY
+    --within treemix_cluster #text file population_locality /t sample_id /t population_locality
     --freq
     --nonfounders
     --out freq_treemix
