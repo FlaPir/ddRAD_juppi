@@ -1,6 +1,6 @@
 #!/bin/bash
  
-  populations \
+  populations \ #populations is a module in Stacks package
     -P /path/to/gstacks_output \
     -M /path/to/pop_map.txt \
     -O /path/to/output_folder \
