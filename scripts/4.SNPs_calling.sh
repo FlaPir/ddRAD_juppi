@@ -2,7 +2,7 @@
  
   populations \ #populations is a module in Stacks package
     -P /path/to/gstacks_output \
-    -M /path/to/pop_map.txt \
+    -M /path/to/pop_map.txt \ #file with sample_id \t population_locality format 
     -O /path/to/output_folder \
     --vcf \
     --radpainter \
