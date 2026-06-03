@@ -45,8 +45,6 @@ plot_locus_and_export_functional_list <- function(gene_id_target, window = 40000
       is_target = ifelse(Gene_ID_base == gene_id_target, "YES", "NO"),
       midpoint  = (Start + End) / 2,
       direction = ifelse(Strand == "+", TRUE, FALSE),
-      
-      # Stagger text vertically to avoid overlapping (alternates between 0.6 and 1.3)
       text_offset = rep(c(0.6, 1.3), length.out = n())
     )
   
