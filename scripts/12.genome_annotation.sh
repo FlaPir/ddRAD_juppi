@@ -6,11 +6,11 @@
 
 module load cd-hit/4.8.1
 
-cd-hit -i proteins_for_braker.fasta \ #the input is the proteomes used in this study concatenated
+cd-hit -i proteins_for_braker.fasta \ #the input is the concatenated proteomes used in this study 
        -o proteins_collapsed.fasta \ 
        -c 0.98 \ 
        -T 40 \ 
-       -M 0 #the input is the proteomes used in this study concatenated
+       -M 0 
 
 #########################
 ### genome annotation ### 
@@ -28,7 +28,7 @@ ORIGINAL_PROT="./proteins_collapsed.fasta"
 CLEAN_PROT="./proteins_cleaned.fasta"
 SPECIES="Cx_pip"
 WORKING_DIR="./braker_output"
-SIF_IMAGE="/mnt/big/containers/singularity/braker3.sif"
+SIF_IMAGE="/path/to/singularity/braker3.sif"
 MY_CONFIG="$HOME/augustus_config_custom"
 
 mkdir -p $WORKING_DIR
@@ -51,6 +51,7 @@ singularity exec -e \
               --AUGUSTUS_CONFIG_PATH=$MY_CONFIG
 
 #BUSCO quality check (replace -i value with genome.fna for doing the genome quality check)
+
 module load BUSCO/5.3.1 2>/dev/null
 
 if [ -f "$WORKING_DIR/braker.aa" ]; then
@@ -64,10 +65,12 @@ fi
 #!/bin/bash
 
 #AGAT software to keep only the longest isoform (transcript) per gene 
+
 agat_sp_keep_longest_isoform.pl -gff braker.gff3 \
                                 -o genome_longest_isoform
 
 #to extract the coding regions (CDS)
+
 agat_sp_extract_sequences.pl -g genome_longest_isoform \
                              -f ../genome.fna \
                              -t cds \
@@ -75,6 +78,7 @@ agat_sp_extract_sequences.pl -g genome_longest_isoform \
                              -o CDS.faa
 
 #DIAMOND for the functional annotation 
+
 diamond makedb --in uniprotkb_proteome_Culex_pipiens_pipiens.fasta \
                 -d db_culex_uniprot #uniprotkb_proteome_Culex_pipiens_pipiens.fasta -> UniProtKB: UP001562425
 
@@ -84,12 +88,14 @@ diamond blastp -q CDS.faa \ #coding regions only
                --outfmt 6
 
 #Selection of the best hits
+
 sort -k1,1 -k11,11g Culex_pipiens_functional_annotation.tsv | sort -u -k1,1 > best_hits.tsv 
 
 awk '$5 < 1e-10 && $3 > 30' best_hits.tsv > reliable_annotations.tsv #final file with only hits characterized by e-value < 1e-10 and %identity > 30 
 
 #Mapping of the high-confidence functional features on the genome
-agat_sp_manage_functional_annotation.pl -f genome.gff \
+
+agat_sp_manage_functional_annotation.pl -f genome_longest_isoform \
                                         -i reliable_annotations.tsv \
                                         --output Culex_pipiens_annotated_genome.gff3
 
