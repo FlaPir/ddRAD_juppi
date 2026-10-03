@@ -38,6 +38,7 @@
     --extract dataset_unrelated_pruned.prune.in \ #output file of --indep-pairwise containing the unlinked SNPs
     --mind 0.2 \ #to remove individuals with > 20% missing genotypes
     --geno 0.05 \ #to remove loci with > 5% missing genotypes
+    --make-bed \
     --out datasetA
 
   #datasetB
@@ -48,6 +49,7 @@
     --extract dataset_unrelated_pruned.prune.in \ #output file of --indep-pairwise containing the unlinked SNPs
     --mind 0.5 \ #to remove individuals with > 50% missing genotypes
     --geno 0.05 \ #to remove loci with > 5% missing genotypes
+    --make-bed \
     --out datasetB
 
 ######################################################
@@ -61,5 +63,6 @@
     --allow-extra-chr \
     --mind 0.2 \ #to remove individuals with > 20% missing genotypes
     --geno 0.05 \ #to remove loci with > 5% missing genotypes
+    --make-bed \
     --out datasetC
 
