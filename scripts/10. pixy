@@ -1,8 +1,38 @@
 ########################################
-# 10. pixy                    #
+# 10. pixy                             #
 # Author: Flavio Piras                 #
 # Reference: ....                      #
 #                                      #
 ########################################
 
+#!/bin/bash
+
+#Stacks population filtering for Dataset C
+
+ populations \ #populations is a module in Stacks package
+    -P /path/to/gstacks_output \
+    -M /path/to/pop_map.txt \ #file with sample_id \t population_locality format 
+    -O /path/to/output_folder/ \
+    -t 16 \
+    --min-gt-depth 10 \
+    -R 0.6 \
+    -p 2 \ #minimum number of populations a locus must be present in to process a locus.
+    --max-obs-het 0.7 \
+    --vcf-all #for pixy analysis which requires not just the SNPs
+
+#beacuse pixy wants the input file zipped and indexed
+bgzip -k Dataset_C.all.vcf -o Dataset_C.all.vcf_4_pixy 
+bcftools sort Dataset_C.all.vcf_4_pixy.gz -O z -o Dataset_C.all.vcf_4_pixy 
+tabix -p vcf Dataset_C.all.vcf_4_pixy
+
+    pixy
+      --stats pi dxy \
+      --vcf Dataset_C.all.vcf_4_pixy,gz \
+      --populations pop_map.txt \ #file sample\tpopulation \
+      --window_size 10000 \
+      --n_core 4 \
+      --bypass_invariant_check \
+      --output_folder ./your_folder \
+      --output_prefix pixy_win10k
+      
 
