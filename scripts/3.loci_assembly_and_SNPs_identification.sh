@@ -1,3 +1,11 @@
+###########################################
+# 3.loci_assembly_and_SNPs_identification #                     
+# Author: Flavio Piras                    #
+# Reference: ....                         #
+#                                         #
+###########################################
+
+
 #!/bin/bash
 
 gstacks \ #gstacks is a module in the Stacks pipeline 
