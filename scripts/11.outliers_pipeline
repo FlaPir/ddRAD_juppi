@@ -1,0 +1,587 @@
+########################################
+# 10. Outliers pipeline                 #
+# Author: Flavio Piras                 #
+# Reference: ....                      #
+#                                      #
+########################################
+
+
+#RStudio 2025.05.1+513 "Mariposa Orchid" Release (ab7c1bc795c7dcff8f26215b832a3649a19fc16c, 2025-06-01) for windows
+
+# ==============================================================================
+# UNIFIED END-TO-END PIPELINE: OUTLIER ANALYSIS, ANNOTATION, AND VISUALIZATION
+# PCAdapt + OutFLANK + GFF3 + Pixy (dXY, Fst, Pi) + eggNOG-mapper + predictCoding + karyoploteR
+# ==============================================================================
+
+# 1. Libraries
+library(pcadapt)
+library(qvalue)
+library(vcfR)
+library(OutFLANK)
+library(GenomicRanges)
+library(txdbmaker)
+library(GenomicFeatures)
+library(VariantAnnotation)
+library(rtracklayer)
+library(karyoploteR)
+library(dplyr)
+library(tidyr)
+library(readr)
+
+# ==============================================================================
+# A. Paths
+# ==============================================================================
+bed_path      <- "Path/to/Dataset_B.bed"
+vcf_path      <- "Path/to/Dataset_B.vcf"
+fasta_path    <- "Path/to/GCA_963924435.1_idCulPipi1.1_genomic.fna" #reference genome idCulPipi1.1; Hesson, J. C., et al. (2025). 
+gff_path      <- "Path/to/CxPip_idCulPipi1.1_annotated.gff3" #file given with our paper
+eggnog_path   <- "Path/to/Cx.pip_eggNOG_ annotations].csv" #eggNOGmapper output 
+
+# Pixy files and ddRAD positions
+pixy_fst_path  <- "Path/to/pixy_win10k_fst.txt"
+pixy_dxy_path  <- "Path/to/pixy_win10k_dxy.txt"
+pixy_pi_path   <- "Path/to/pixy_win10k_pi.txt"
+rad_sites_path <- "Path/to/all_filtered_SNPs_positions.txt" #list of filtered SNPs positions "Chromosome\tposition"
+
+# Output directory
+out_dir <- "Path/to/output_dir"
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
+# ==============================================================================
+# B.1: PCADAPT (Bonferroni < 0.1)
+# ==============================================================================
+cat("\n--> [1/8] PCAdapt...\n")
+filename <- read.pcadapt(bed_path, type = "bed")
+x <- pcadapt(input = filename, K = 2)
+
+bim_path <- sub("\\.bed$", ".bim", bed_path)
+bim      <- read.table(bim_path, header = FALSE, stringsAsFactors = FALSE)
+colnames(bim) <- c("CHROM", "SNP_ID", "CM", "POS", "A1", "A2")
+
+pvals_pcadapt <- x$pvalues
+padj_bonf     <- p.adjust(pvals_pcadapt, method = "bonferroni")
+
+pcadapt_all_df <- cbind(bim, pvalue_pcadapt = pvals_pcadapt, padj_Bonferroni = padj_bonf) %>%
+  mutate(log10p = -log10(pvalue_pcadapt)) %>%
+  filter(!is.na(log10p))
+
+write.csv(pcadapt_all_df, file.path(out_dir, "PCAdapt_All_SNPs_Results.csv"), row.names = FALSE)
+
+res_pcadapt <- pcadapt_all_df %>%
+  filter(!is.na(padj_Bonferroni) & padj_Bonferroni < 0.1)
+
+cat("    SNP outlier PCAdapt (Bonferroni < 0.1):", nrow(res_pcadapt), "\n")
+
+# ==============================================================================
+# C.2: OUTFLANK (FDR < 0.1 + Delta AF)
+# ==============================================================================
+cat("\n--> [2/8] OutFLANK...\n")
+vcf <- read.vcfR(vcf_path, verbose = FALSE)
+gl <- vcfR2genlight(vcf)
+gt_matrix <- as.matrix(gl)
+gt_matrix[is.na(gt_matrix)] <- 9
+
+fix_data <- getFIX(vcf)
+locus_names <- paste(fix_data[, "CHROM"], fix_data[, "POS"], sep = "_")
+colnames(gt_matrix) <- locus_names
+
+sample_ids <- rownames(gt_matrix)
+pop_labels <- sub("_(BO|LN|MO|RA).*", "", sample_ids)
+
+fst_mat <- MakeDiploidFSTMat(SNPmat = gt_matrix, locusNames = locus_names, popNames = pop_labels)
+out_res <- OutFLANK(FstDataFrame = fst_mat, NumberOfSamples = length(unique(pop_labels)), qthreshold = 0.10)
+
+res_outflank <- out_res$results %>%
+  filter(OutlierFlag == TRUE) %>%
+  separate(LocusName, into = c("CHROM", "POS"), sep = "_", remove = FALSE, convert = TRUE)
+
+outlier_names <- res_outflank$LocusName
+gt_outliers   <- gt_matrix[, outlier_names, drop = FALSE]
+
+get_af <- function(gt_vec) {
+  valid <- gt_vec[gt_vec != 9]
+  if (length(valid) == 0) return(NA)
+  return(sum(valid) / (2 * length(valid)))
+}
+
+pop_af  <- aggregate(gt_outliers, by = list(Population = pop_labels), FUN = get_af)
+af_long <- pop_af %>%
+  pivot_longer(cols = -Population, names_to = "LocusName", values_to = "AF") %>%
+  pivot_wider(names_from = Population, values_from = AF, names_prefix = "AF_")
+
+res_outflank <- left_join(res_outflank, af_long, by = "LocusName") %>%
+  rowwise() %>%
+  mutate(
+    AF_others_mean = mean(c_across(starts_with("AF_") & !contains("Lido_delle_Nazioni_J")), na.rm = TRUE),
+    Delta_AF_J      = abs(get("AF_Lido_delle_Nazioni_J") - AF_others_mean)
+  ) %>%
+  ungroup()
+
+cat("    SNP outlier OutFLANK (FDR < 0.1):", nrow(res_outflank), "\n")
+
+# ==============================================================================
+# D.3:  OUTLIER Merging  (PCAdapt ∩ OutFLANK)
+# ==============================================================================
+cat("\n--> [3/8] PCAdapt ∩ OutFLANK...\n")
+
+res_pcadapt$CHROM  <- as.character(res_pcadapt$CHROM)
+res_outflank$CHROM <- as.character(res_outflank$CHROM)
+
+shared_outliers <- inner_join(
+  res_pcadapt,
+  res_outflank,
+  by = c("CHROM", "POS")
+)
+
+cat("    Shared outliers SNPS (Unique)", nrow(shared_outliers), "\n")
+
+# ==============================================================================
+# E.4 Structural Annotation (GENEID + STRAND)
+# ==============================================================================
+cat("\n--> [4/8] Mapping on GFF3 and intergenic regions filtering...\n")
+txdb <- makeTxDbFromGFF(gff_path, format = "gff3")
+
+snps_gr <- GRanges(
+  seqnames = shared_outliers$CHROM,
+  ranges   = IRanges(start = shared_outliers$POS, end = shared_outliers$POS)
+)
+
+prom_param <- PromoterVariants(upstream = 2000, downstream = 2000)
+loc <- locateVariants(snps_gr, txdb, AllVariants(promoter = prom_param))
+
+loc_df <- data.frame(
+  CHROM    = as.character(seqnames(loc)),
+  POS      = start(loc),
+  LOCATION = as.character(mcols(loc)$LOCATION),
+  GENEID   = as.character(mcols(loc)$GENEID),
+  STRAND   = as.character(strand(loc)),
+  stringsAsFactors = FALSE
+) %>% distinct()
+
+annotated_snps_raw <- inner_join(shared_outliers, loc_df, by = c("CHROM", "POS")) %>%
+  filter(LOCATION != "intergenic" & !is.na(GENEID))
+
+loc_df_formatted <- annotated_snps_raw %>%
+  mutate(GENE_STRAND_ROW = paste0(GENEID, "(", STRAND, ")")) %>%
+  group_by(CHROM, POS, GENEID) %>%
+  summarise(
+    STRAND      = first(STRAND),
+    LOCATION    = paste(unique(LOCATION), collapse = "; "),
+    GENE_STRAND = first(GENE_STRAND_ROW),
+    .groups     = "drop"
+  ) %>%
+  group_by(CHROM, POS) %>%
+  summarise(
+    GENEID      = paste(unique(GENEID), collapse = "; "),
+    STRAND      = paste(unique(STRAND), collapse = "; "),
+    LOCATION    = paste(unique(LOCATION), collapse = "; "),
+    GENE_STRAND = paste(unique(GENE_STRAND), collapse = "; "),
+    .groups     = "drop"
+  )
+
+annotated_snps <- shared_outliers %>%
+  inner_join(loc_df_formatted, by = c("CHROM", "POS"))
+
+cat("    unique outliers (Promoters, CDS, Introns):", nrow(annotated_snps), "\n")
+
+# ==============================================================================
+# F.5 Pixy output integration (FST, dXY, Pi within)
+# ==============================================================================
+cat("\n--> [5/8] Pixy output integration (FST, dXY, Pi within)...\n")
+
+df_pixy_fst <- read_tsv(pixy_fst_path, show_col_types = FALSE) %>% 
+  rename_with(~ "avg_fst", matches("avg_wc_fst|avg_fst")) %>%
+  drop_na(avg_fst)
+
+df_pixy_dxy <- read_tsv(pixy_dxy_path, show_col_types = FALSE) %>% 
+  drop_na(avg_dxy)
+
+df_pixy_pi  <- read_tsv(pixy_pi_path, show_col_types = FALSE) %>% 
+  drop_na(avg_pi)
+
+
+df_pi_wide <- df_pixy_pi %>%
+  pivot_wider(
+    id_cols = c(chromosome, window_pos_1, window_pos_2),
+    names_from = pop,
+    values_from = avg_pi,
+    names_prefix = "pi_"
+  )
+
+
+df_dxy_avg <- df_pixy_dxy %>%
+  filter(pop1 == "Lido_delle_Nazioni_J" | pop2 == "Lido_delle_Nazioni_J") %>%
+  group_by(chromosome, window_pos_1, window_pos_2) %>%
+  summarise(avg_dxy = mean(avg_dxy, na.rm = TRUE), .groups = "drop")
+
+df_fst_avg <- df_pixy_fst %>%
+  group_by(chromosome, window_pos_1, window_pos_2) %>%
+  summarise(avg_fst = mean(avg_fst, na.rm = TRUE), .groups = "drop")
+
+
+df_pixy_all <- df_fst_avg %>%
+  inner_join(df_dxy_avg, by = c("chromosome", "window_pos_1", "window_pos_2")) %>%
+  inner_join(df_pi_wide, by = c("chromosome", "window_pos_1", "window_pos_2"))
+
+#(Top 5%)
+fst_thresh_95 <- quantile(df_pixy_all$avg_fst, 0.95, na.rm = TRUE)
+dxy_thresh_95 <- quantile(df_pixy_all$avg_dxy, 0.95, na.rm = TRUE)
+
+df_pixy_all <- df_pixy_all %>%
+  mutate(is_outlier_window = (avg_fst >= fst_thresh_95) & (avg_dxy >= dxy_thresh_95))
+
+cat("----------------------------------------------------------------------\n")
+cat(" OUTLIER WINDOW (HIGH FST + HIGH DXY) VS BACKGROUND\n")
+cat("----------------------------------------------------------------------\n")
+summary_stats <- df_pixy_all %>%
+  group_by(is_outlier_window) %>%
+  summarise(
+    across(starts_with("pi_"), ~ mean(.x, na.rm = TRUE)),
+    Fst_medio = mean(avg_fst, na.rm = TRUE),
+    dXY_medio = mean(avg_dxy, na.rm = TRUE),
+    N_finestre = n()
+  ) %>%
+  mutate(Categoria = if_else(is_outlier_window, "Outliers (High Fst & dXY)", "Background (Genome)")) %>%
+  select(Categoria, everything(), -is_outlier_window)
+
+print(as.data.frame(summary_stats), digits = 4)
+cat("----------------------------------------------------------------------\n\n")
+
+
+snps_annot_gr <- GRanges(
+  seqnames = annotated_snps$CHROM,
+  ranges   = IRanges(start = annotated_snps$POS, end = annotated_snps$POS)
+)
+
+pixy_gr <- GRanges(
+  seqnames = df_pixy_all$chromosome,
+  ranges   = IRanges(start = df_pixy_all$window_pos_1, end = df_pixy_all$window_pos_2)
+)
+mcols(pixy_gr) <- df_pixy_all %>% select(-chromosome, -window_pos_1, -window_pos_2)
+
+overlaps_idx <- findOverlaps(snps_annot_gr, pixy_gr, select = "first")
+
+pixy_matched_df <- as.data.frame(mcols(pixy_gr)[overlaps_idx, ])
+colnames(pixy_matched_df) <- paste0(colnames(pixy_matched_df), "_10kb")
+
+annotated_snps <- bind_cols(annotated_snps, pixy_matched_df)
+
+# Wilcoxon test
+wilcox_res <- wilcox.test(annotated_snps$avg_dxy_10kb, df_pixy_all$avg_dxy, alternative = "greater")
+cat("     dXY Trashold (Genomic Top 5%):", round(dxy_thresh_95, 5), "\n")
+cat("    Wilcoxon Test p-value (dXY Outliers > dXY Genome):", format.pval(wilcox_res$p.value, digits = 3), "\n")
+
+# ==============================================================================
+# G.6 Integrating eggNOG-mapper functional annotation 
+# ==============================================================================
+cat("\n--> [6/8] Importing and cleaning of eggNOG_mapper file...\n")
+
+eggnog_raw <- read.delim(eggnog_path, comment.char = "#", header = FALSE, stringsAsFactors = FALSE)
+if (ncol(eggnog_raw) == 1) {
+  eggnog_raw <- read.csv(eggnog_path, comment.char = "#", header = FALSE, stringsAsFactors = FALSE)
+}
+
+colnames(eggnog_raw)[1:12] <- c(
+  "query_id", "seed_ortholog", "evalue", "score", "eggNOG_OGs", 
+  "max_annot_lvl", "COG_category", "Description", "Preferred_name", 
+  "GOs", "EC", "KEGG_ko"
+)
+
+eggnog_cleaned <- eggnog_raw %>%
+  mutate(
+    GENEID = sub("\\.t.*", "", query_id),
+    GENEID = sub("-PA.*", "", GENEID),
+    GENEID = trimws(GENEID)
+  ) %>%
+  mutate(
+    Preferred_name = ifelse(Preferred_name == "-" | Preferred_name == "", NA, Preferred_name),
+    Description    = ifelse(Description == "-" | Description == "", NA, Description)
+  ) %>%
+  dplyr::select(GENEID, Preferred_name, Description, COG_category, GOs, KEGG_ko) %>%
+  distinct(GENEID, .keep_all = TRUE)
+
+get_eggnog_annot <- function(gene_id_str, eggnog_df) {
+  genes <- trimws(unlist(strsplit(gene_id_str, ";")))
+  sub_egg <- eggnog_df %>% filter(GENEID %in% genes)
+  if (nrow(sub_egg) == 0) {
+    return(data.frame(Preferred_name = NA_character_, Description = NA_character_, COG_category = NA_character_, GOs = NA_character_, KEGG_ko = NA_character_))
+  }
+  data.frame(
+    Preferred_name = paste(na.omit(unique(sub_egg$Preferred_name)), collapse = "; "),
+    Description    = paste(na.omit(unique(sub_egg$Description)), collapse = "; "),
+    COG_category   = paste(na.omit(unique(sub_egg$COG_category)), collapse = "; "),
+    GOs            = paste(na.omit(unique(sub_egg$GOs)), collapse = "; "),
+    KEGG_ko        = paste(na.omit(unique(sub_egg$KEGG_ko)), collapse = "; "),
+    stringsAsFactors = FALSE
+  )
+}
+
+eggnog_annot_list <- lapply(annotated_snps$GENEID, get_eggnog_annot, eggnog_df = eggnog_cleaned)
+eggnog_annot_df   <- bind_rows(eggnog_annot_list)
+
+final_pipeline_results <- bind_cols(annotated_snps, eggnog_annot_df)
+
+annotated_count <- sum(!is.na(final_pipeline_results$Preferred_name) | !is.na(final_pipeline_results$Description))
+cat("    eggNOG annotated genes found:", annotated_count, "su", nrow(final_pipeline_results), "\n")
+
+# ==============================================================================
+# H.6.5 (predictCoding)
+# ==============================================================================
+cat("\n--> [6.5/8] Calculating amminoacidic effect on top outliers...\n")
+
+outliers_gr <- GRanges(
+  seqnames = final_pipeline_results$CHROM,
+  ranges   = IRanges(start = final_pipeline_results$POS, end = final_pipeline_results$POS)
+)
+
+vcf_full <- readVcf(vcf_path)
+vcf_outliers_only <- subsetByOverlaps(vcf_full, outliers_gr)
+
+active_scaffolds <- unique(as.character(final_pipeline_results$CHROM))
+vcf_outliers_only <- keepSeqlevels(vcf_outliers_only, active_scaffolds, pruning.mode = "coarse")
+txdb_active        <- keepSeqlevels(txdb, active_scaffolds, pruning.mode = "coarse")
+
+fa_file <- FaFile(fasta_path)
+coding_effects <- predictCoding(vcf_outliers_only, txdb_active, seqSource = fa_file)
+
+if (length(coding_effects) > 0) {
+  coding_df <- as.data.frame(coding_effects) %>%
+    mutate(
+      CHROM       = as.character(seqnames),
+      POS         = start,
+      CONSEQUENCE = as.character(CONSEQUENCE),
+      REF_AA      = as.character(REFAA),
+      VAR_AA      = as.character(VARAA),
+      PROT_POS    = unlist(PROTEINLOC),
+      AA_change   = ifelse(
+        CONSEQUENCE %in% c("nonsynonymous", "synonymous", "nonsense"),
+        paste0(REF_AA, PROT_POS, VAR_AA),
+        "-"
+      )
+    ) %>%
+    dplyr::select(CHROM, POS, CONSEQUENCE, AA_change) %>%
+    distinct(CHROM, POS, .keep_all = TRUE)
+} else {
+  coding_df <- data.frame(CHROM = character(), POS = integer(), CONSEQUENCE = character(), AA_change = character())
+}
+
+final_pipeline_results <- left_join(final_pipeline_results, coding_df, by = c("CHROM", "POS")) %>%
+  mutate(
+    CONSEQUENCE = ifelse(is.na(CONSEQUENCE), paste0("non-coding (", LOCATION, ")"), CONSEQUENCE),
+    AA_change   = ifelse(is.na(AA_change), "-", AA_change)
+  )
+
+# ==============================================================================
+# I. 7 Exporting csv
+# ==============================================================================
+cat("\n--> [7/8] Exporting csv...\n")
+
+dxy_threshold_80 <- quantile(df_pixy_all$avg_dxy, 0.80, na.rm = TRUE)
+
+final_pipeline_results <- final_pipeline_results %>%
+  arrange(CHROM, POS) %>%
+  mutate(
+    SNP_Num = row_number(),
+    Candidate_Tier = case_when(
+      avg_dxy_10kb >= dxy_thresh_95 & Delta_AF_J >= 0.50 ~ "Tier 1 (High Confidence / Top 5% dXY)",
+      avg_dxy_10kb >= dxy_threshold_80 & Delta_AF_J >= 0.30 ~ "Tier 2 (Extended / Top 20% dXY)",
+      TRUE ~ "Tier 3 (Moderate / Sweep Recente)"
+    )
+  ) %>%
+  dplyr::select(
+    SNP_Num, SNP_ID, LocusName, CHROM, POS, GENE_STRAND, GENEID, STRAND, LOCATION,
+    Candidate_Tier, Delta_AF_J, avg_fst_10kb, avg_dxy_10kb, starts_with("pi_"),
+    pvalue_pcadapt, padj_Bonferroni, FST, qvalues, CONSEQUENCE, AA_change, 
+    Preferred_name, Description, COG_category, GOs, KEGG_ko, everything()
+  )
+
+tier1_candidates <- final_pipeline_results %>%
+  filter(Candidate_Tier == "Tier 1 (High Confidence / Top 5% dXY)") %>%
+  arrange(SNP_Num)
+
+extended_candidates <- final_pipeline_results %>%
+  filter(Candidate_Tier %in% c("Tier 1 (High Confidence / Top 5% dXY)", "Tier 2 (Extended / Top 20% dXY)")) %>%
+  arrange(SNP_Num)
+
+write.csv2(tier1_candidates, file.path(out_dir, "TIER1_CANDIDATES_SNPs.csv"), row.names = FALSE)
+write.csv2(extended_candidates, file.path(out_dir, "TIER2_CANDIDATES_EXTENDED_SET.csv"), row.names = FALSE)
+write.csv2(final_pipeline_results, file.path(out_dir, "14_TOP_OUTLIERS.csv"), row.names = FALSE)
+
+cat(" -  Tier 1:", nrow(tier1_candidates), "SNP\n")
+cat(" -  (Tier 1 + Tier 2):", nrow(extended_candidates), "SNP\n")
+cat(" - TOTAL OF UNIQUE SNPs ANALYSED:", nrow(final_pipeline_results), "\n")
+
+# ==============================================================================
+# J.8 Plots
+# ==============================================================================
+cat("\n--> [8/8]3 Plots KaryoploteR...\n")
+
+chrom_df <- data.frame(
+  chr   = c("OZ004311.1", "OZ004312.1", "OZ004313.1"),
+  start = c(1, 1, 1),
+  end   = c(128522754, 213114244, 190882370)
+)
+custom_genome <- makeGRangesFromDataFrame(chrom_df)
+
+rad_sites <- read_tsv(rad_sites_path, col_names = c("chr", "pos"), show_col_types = FALSE)
+rad_gr <- GRanges(seqnames = rad_sites$chr, ranges = IRanges(start = rad_sites$pos, end = rad_sites$pos))
+
+# LAYOUT STANDARD
+master_pp <- getDefaultPlotParams(plot.type = 2)
+master_pp$ideogramheight <- 18
+master_pp$data1height    <- 150
+master_pp$data2height    <- 50
+master_pp$topmargin      <- 50       
+master_pp$bottommargin   <- 30
+master_pp$leftmargin     <- 0.22
+master_pp$rightmargin    <- 0.05
+
+plot_standard_ddrad <- function(kp) {
+  kpPlotDensity(kp, data = rad_gr, col = "#B0BEC5", border = "#546E7A", data.panel = 2, r0 = 0, r1 = 1)
+  kpAddLabels(kp, labels = "ddRAD Density", r0 = 0.5, r1 = 0.5, data.panel = 2, cex = 0.7, col = "#263238", pos = 2, label.margin = 0.08)
+}
+
+# ------------------------------------------------------------------------------
+# Plot 1: PCAdapt Outliers (Manhattan Plot)
+# ------------------------------------------------------------------------------
+pcadapt_all_gr <- GRanges(
+  seqnames = pcadapt_all_df$CHROM,
+  ranges   = IRanges(start = pcadapt_all_df$POS, end = pcadapt_all_df$POS),
+  log10p   = pcadapt_all_df$log10p
+)
+
+bonf_cutoff   <- -log10(0.1 / nrow(pcadapt_all_df))
+max_y_pcadapt <- max(pcadapt_all_df$log10p, na.rm = TRUE) + 1
+pcadapt_outliers_gr <- pcadapt_all_gr[pcadapt_all_gr$log10p >= bonf_cutoff]
+
+tiff(file.path(out_dir, "PCAdapt_Manhattan.tif"), width = 13, height = 7, units = "in", res = 600, compression = "lzw")
+
+kp1 <- plotKaryotype(genome = custom_genome, plot.type = 2, chromosomes = "all", plot.params = master_pp)
+kpAddMainTitle(kp1, main = "Genome-wide Selection Scan Outliers (PCAdapt Manhattan Plot)", cex = 1.1, col = "#0007FF", font = 2)
+
+kpAxis(kp1, ymin = 0, ymax = max_y_pcadapt, r0 = 0, r1 = 1, data.panel = 1, cex = 0.6, col = "#37474F")
+kpAddLabels(kp1, labels = expression(-log[10](p)), r0 = 0.7, r1 = 0.7, data.panel = 1, cex = 0.8, col = "#37474F", srt = 90, pos = 2, label.margin = 0.045)
+
+kpPoints(kp1, data = pcadapt_all_gr, y = pcadapt_all_gr$log10p, ymin = 0, ymax = max_y_pcadapt,
+         col = adjustcolor("#7B1FA2", alpha.f = 0.25), cex = 0.35, pch = 16, data.panel = 1)
+
+kpAbline(kp1, h = bonf_cutoff, ymin = 0, ymax = max_y_pcadapt, col = "#D32F2F", lty = 2, lwd = 1.2, data.panel = 1)
+
+kpPoints(kp1, data = pcadapt_outliers_gr, y = pcadapt_outliers_gr$log10p, ymin = 0, ymax = max_y_pcadapt,
+         col = "#0007FF", pch = 19, cex = 1.1, data.panel = 1)
+
+plot_standard_ddrad(kp1)
+dev.off()
+
+# ------------------------------------------------------------------------------
+# Plot 2: OutFLANK Outliers (Manhattan Plot Fst)
+# ------------------------------------------------------------------------------
+pixy_fst_gr <- GRanges(
+  seqnames = df_fst_avg$chromosome,
+  ranges   = IRanges(start = df_fst_avg$window_pos_1, end = df_fst_avg$window_pos_2),
+  fst      = df_fst_avg$avg_fst
+)
+
+outflank_gr <- GRanges(
+  seqnames = res_outflank$CHROM, 
+  ranges   = IRanges(start = res_outflank$POS, end = res_outflank$POS), 
+  fst      = res_outflank$FST
+)
+outflank_thresh <- min(res_outflank$FST, na.rm = TRUE)
+
+tiff(file.path(out_dir, "OutFLANK_Outliers.tif"), width = 13, height = 7, units = "in", res = 600, compression = "lzw")
+
+kp2 <- plotKaryotype(genome = custom_genome, plot.type = 2, chromosomes = "all", plot.params = master_pp)
+kpAddMainTitle(kp2, main = "Genome-wide Selection Scan Outliers (OutFLANK - FDR q < 0.10)", cex = 1.1, col = "#006064", font = 2)
+
+kpAxis(kp2, ymin = 0, ymax = 1, r0 = 0, r1 = 1, data.panel = 1, cex = 0.6, col = "#37474F", numticks = 5)
+kpAddLabels(kp2, labels = expression(F[ST]), r0 = 0.5, r1 = 0.5, data.panel = 1, cex = 0.8, col = "#212121", srt = 90, pos = 2, label.margin = 0.05)
+
+kpPoints(kp2, data = pixy_fst_gr, y = pixy_fst_gr$fst, col = adjustcolor("#455A64", alpha.f = 0.25), cex = 0.35, pch = 16, data.panel = 1, r0 = 0, r1 = 1)
+kpAbline(kp2, h = outflank_thresh, col = "#D32F2F", lty = 2, lwd = 1.2, data.panel = 1, r0 = 0, r1 = 1)
+
+kpPoints(kp2, data = outflank_gr, y = outflank_gr$fst, col = "#FFF300", pch = 19, cex = 1.1, data.panel = 1, r0 = 0, r1 = 1)
+
+plot_standard_ddrad(kp2)
+dev.off()
+
+# ------------------------------------------------------------------------------
+# Plot 3: Final consensus (NUMERI 1-14 SUI PIN + LEGENDA COMPATTA)
+# ------------------------------------------------------------------------------
+consensus_df <- final_pipeline_results %>%
+  mutate(
+    chr        = as.character(CHROM),
+    pos        = as.numeric(POS),
+    snp_num    = as.character(SNP_Num),
+    gene_label = GENE_STRAND
+  ) %>%
+  dplyr::select(chr, pos, snp_num, gene_label, SNP_ID) %>%
+  arrange(chr, pos)
+
+consensus_df$y_top <- 0.25
+
+if (nrow(consensus_df) > 1) {
+  for (i in 2:nrow(consensus_df)) {
+    if (consensus_df$chr[i] == consensus_df$chr[i-1] && (consensus_df$pos[i] - consensus_df$pos[i-1]) < 10000000) {
+      consensus_df$y_top[i-1] <- 0.45
+    }
+  }
+}
+
+consensus_gr <- GRanges(
+  seqnames   = consensus_df$chr, 
+  ranges     = IRanges(start = consensus_df$pos, end = consensus_df$pos),
+  snp_num    = consensus_df$snp_num,
+  gene_label = consensus_df$gene_label,
+  y_top      = consensus_df$y_top
+)
+
+tiff(file.path(out_dir, "TOP_14_Outliers_Annotated.tif"), width = 13, height = 7, units = "in", res = 600, compression = "lzw")
+
+kp3 <- plotKaryotype(genome = custom_genome, plot.type = 2, chromosomes = "all", plot.params = master_pp)
+kpAddMainTitle(kp3, main = "Consensus Outliers & Candidate Genes (PCAdapt x OutFLANK)", cex = 1.1, col = "#14D928", font = 2)
+
+
+kpSegments(kp3, 
+           chr = seqnames(consensus_gr), 
+           x0 = start(consensus_gr), x1 = start(consensus_gr), 
+           y0 = 0, y1 = consensus_gr$y_top, 
+           col = "#15612E", lwd = 1.2, data.panel = 1)
+
+
+kpPoints(kp3, data = consensus_gr, y = consensus_gr$y_top, col = "#14D928", pch = 19, cex = 1.4, data.panel = 1)
+
+
+kpText(kp3, 
+       data = consensus_gr, 
+       y = consensus_gr$y_top + 0.09, 
+       labels = consensus_gr$snp_num, 
+       srt = 0, 
+       cex = 0.75, 
+       col = "#1A237E", 
+       font = 2, 
+       data.panel = 1)
+
+plot_standard_ddrad(kp3)
+
+legend_items <- paste0(consensus_df$snp_num, ": ", consensus_df$gene_label)
+
+legend(
+  "topright", 
+  legend = legend_items, 
+  ncol = 2, 
+  cex = 0.6, 
+  text.font = 2,
+  text.col = "#263238",
+  bty = "n", 
+  title = "Top Outliers Candidate Genes [SNP Index: Gene ID (Strand)]", 
+  title.font = 2,
+  title.col = "#15612E"
+)
+
+dev.off()
+
+cat("\n==============================================================================\n")
+cat(" [OK] PIPELINE COMPLETED!\n")
+cat(" All the results saved in ", out_dir, "\n")
+cat("==============================================================================\n")
