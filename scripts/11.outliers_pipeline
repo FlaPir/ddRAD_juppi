@@ -15,14 +15,11 @@
 
 # 1. Libraries
 library(pcadapt)
-library(qvalue)
 library(vcfR)
 library(OutFLANK)
 library(GenomicRanges)
 library(txdbmaker)
-library(GenomicFeatures)
 library(VariantAnnotation)
-library(rtracklayer)
 library(karyoploteR)
 library(dplyr)
 library(tidyr)
