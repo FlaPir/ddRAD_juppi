@@ -28,7 +28,7 @@ ORIGINAL_PROT="./proteins_collapsed.fasta"
 CLEAN_PROT="./proteins_cleaned.fasta"
 SPECIES="Cx_pip"
 WORKING_DIR="./braker_output"
-SIF_IMAGE="/path/to/singularity/braker3.sif"
+SIF_IMAGE="/path/to/singularity/braker2.sif"
 MY_CONFIG="$HOME/augustus_config_custom"
 
 mkdir -p $WORKING_DIR
