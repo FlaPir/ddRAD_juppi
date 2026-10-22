@@ -1,3 +1,12 @@
+
+########################################
+# 1.process_radtags                    #
+# Author: Flavio Piras                 #
+# Reference: ....                      #
+#                                      #
+########################################
+
+
 #!/bin/bash
 
 INPUT_DIR="/path/to/raw_reads"
