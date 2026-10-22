@@ -1,0 +1,29 @@
+
+########################################
+# 13.Outliers_Miss_Coverage_Check      #
+# Author: Flavio Piras                 #
+# Reference: ....                      #
+#                                      #
+########################################
+
+#!/bin/bash
+
+
+for pop_file in BO.txt LN.txt LNJ.txt MO.txt RA.txt; do #the .txt files contain the listo of the samples_ID 
+    pop_name=$(basename "$pop_file" .txt)
+    vcftools --vcf ../../populations.snps.vcf \ #Dataset_A
+      --keep "$pop_file" \
+      --positions outliers_positions.txt \ #.txt file "chromosome\tSNPposition"
+      --missing-site \
+      --out "missing_${pop_name}"
+done
+
+
+for pop_file in BO.txt LN.txt LNJ.txt MO.txt RA.txt; do
+    pop_name=$(basename "$pop_file" .txt)
+    vcftools --vcf ../../populations.snps.vcf \ #Dataset_A
+      --keep "$pop_file" \
+      --positions outliers_positions.txt \
+      --site-mean-depth \
+      --out "mean_depth_${pop_name}"
+done
