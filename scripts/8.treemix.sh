@@ -1,20 +1,29 @@
+########################################
+# 8.treemix                            #
+# Author: Flavio Piras                 #
+# Reference: ....                      #
+#                                      #
+########################################
+
 #!/bin/bash
 
+awk '{print $1, $2, $1}' Dataset_B.fam > treemix_clust.txt #treemix required file "Population,Sample_ID,Population"
+
   plink \
-    --bfile datasetA/B \
+    --bfile Dataset_B \
     --allow-extra-chr
-    --within treemix_cluster #text file population_locality /t sample_id /t population_locality
+    --within treemix_clust.txt 
     --freq
-    --nonfounders
-    --out freq_treemix
+    --out freq_4_treemix
     
 #############################################################
 ## conversion to a Treemix compatible file of plink output ##
 #############################################################
 
-python3 /path/to/plink2treemix.py /path/to/freq_per_treemix.frq.strat | gzip > treemix.gz
+gzip -f freq_4_treemix.frq.strat
 
-# plink2treemix.py downloaded by https://github.com/thomnelson/tools/blob/master/plink2treemix.py and modified 
+python /mnt/data3ZEUSPV/flavioPorretta/ddRAD/scripts/plink2treemix.py freq_4_treemix.frq.strat.gz input_treemix.gz 
+# plink2treemix.py downloaded by https://github.com/thomnelson/tools/blob/master/plink2treemix.py and modified  as follows
 
 #!/usr/bin/env python3
 import sys
@@ -69,19 +78,13 @@ sys.stderr.write(f"\nFinished! Total SNPs written: {nsnps_out}\n")
 
 #!/bin/bash
 
-for root in LN_J LN BO MO RA; do
+for m in {0..5}; do
+    treemix -i input_treemix.gz -m $m -k 100 -o "treemix_m${m}"; #unrooted
+  done
+
   for i in {0..5}; do
     echo "Running: TreeMix m=$i rooted on $root"
-    treemix -i treemix.gz -m $i -o treemix_${root}_m$i -root $root -k 500 -bootstrap > log_${root}_m$i.txt
+    treemix -i input_treemix.gz -m $i -o treemix_${root}_m$i -root $root -k 500 -bootstrap > log_${root}_m$i.txt #rooted cambiando root a ogni ciclo
   done
 done
-
-
-#unrooted cycle
-for i in {0..5}; do
-  echo "Running: TreeMix m=$i (Unrooted)"
-  treemix -i treemix.gz -m $i -o treemix_unrooted_m$i -k 500 -bootstrap > log_unrooted_m$i.txt
-done
-
-
 
