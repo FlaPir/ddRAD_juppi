@@ -1,3 +1,11 @@
+########################################
+# 4.SNPs_calling                       #
+# Author: Flavio Piras                 #
+# Reference: ....                      #
+#                                      #
+########################################
+
+
 #!/bin/bash
 
 #Stacks population filtering for Dataset A
