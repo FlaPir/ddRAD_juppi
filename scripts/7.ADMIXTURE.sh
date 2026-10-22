@@ -1,9 +1,16 @@
+########################################
+# 7.ADMIXTURE                          #
+# Author: Flavio Piras                 #
+# Reference: ....                      #
+#                                      #
+########################################
+
 #!/bin/bash
 
 #before running ADMIXTURE it's important to change the .bim file this way: awk '{ $1 = NR; print $0 }' old.bim > new.bim
 #it will change the first column from the complete names of the chromosomes to numbers (OZ004311.1 --> 1; OZ004312.1 --> 2; OZ004313.1 --> 3)
 
-INPUT_FILE="/path/to/file.bed"
+INPUT_FILE="/path/to/Dataset_B.bed"
 BASE_NAME=$(basename "$INPUT_FILE" .bed)
 OUTPUT_DIR=$(dirname "$INPUT_FILE")
 
