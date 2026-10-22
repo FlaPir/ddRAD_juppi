@@ -1,3 +1,14 @@
+########################################
+# 2.reads_alignment                   #
+# Author: Flavio Piras                 #
+# Reference: ....                      #
+#                                      #
+########################################
+
+
+
+
+
 #!/bin/bash
 
 genome="/path/to/GCA_963924435.1_idCulPipi1.1_genomic.fna" #Accession: GCA_963924435.1
